@@ -140,8 +140,12 @@ export function generateCBOMReport(seals = [], systemInfo = {}) {
   for (const seal of seals) {
     const cbom = seal.cbom
     if (!cbom) continue
-    const alg = cbom.primitives?.chain_hash?.algorithm || 'unknown'
-    primitiveUsage[alg] = (primitiveUsage[alg] || 0) + 1
+    const chainAlg = cbom.primitives?.chain_hash?.algorithm || 'unknown'
+    primitiveUsage[chainAlg] = (primitiveUsage[chainAlg] || 0) + 1
+    const sigAlg = cbom.primitives?.seal_signature?.algorithm
+    if (sigAlg && sigAlg !== 'none') {
+      primitiveUsage[sigAlg] = (primitiveUsage[sigAlg] || 0) + 1
+    }
     if (cbom.pq_assessment?.overall_pq_safe) pqSafeCount++
     else pqUnsafeCount++
   }

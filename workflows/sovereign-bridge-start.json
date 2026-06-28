@@ -1,0 +1,13 @@
+{
+  "name": "sovereign-bridge-start",
+  "description": "Boot SovereignBridge — PostgreSQL + shells + control tower",
+  "env": { "cwd": "C:/Users/jessi/Desktop/sovereign-bridge" },
+  "steps": [
+    { "id": "db_up",       "run": "docker.up" },
+    { "id": "db_migrate",  "run": "psql.run", "args": { "file": "db/migrations/001_bridge_shells.sql" } },
+    { "id": "install",     "run": "npm.install" },
+    { "id": "test",        "run": "npm.test" },
+    { "id": "health_pre",  "run": "curl.health", "args": { "url": "http://localhost:4500" }, "stopOnFail": false },
+    { "id": "start_note",  "run": "raw", "cmd": "echo 'Run: node bisoft-connector/src/server.mjs in a new terminal'" }
+  ]
+}

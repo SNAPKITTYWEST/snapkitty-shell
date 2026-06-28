@@ -1,0 +1,18 @@
+{
+  "name": "audit-repo",
+  "description": "Full sovereign repo audit — git state, search, deps, GPU, WORM",
+  "env": { "path": "." },
+  "steps": [
+    { "id": "git_status",  "run": "git.status" },
+    { "id": "git_log",     "run": "git.log" },
+    { "id": "git_diff",    "run": "git.diff.staged" },
+    { "id": "branches",    "run": "git.branch" },
+    { "id": "search_todo", "run": "grep.pattern", "args": { "pattern": "TODO|FIXME|HACK", "path": "." } },
+    { "id": "search_keys", "run": "grep.pattern", "args": { "pattern": "sk-|Bearer |api_key|password", "path": "." } },
+    { "id": "file_count",  "run": "raw", "cmd": "find . -type f | wc -l" },
+    { "id": "pkg_check",   "parallel": ["npm.audit", "npm.test"] },
+    { "id": "gpu_status",  "run": "sys.gpu" },
+    { "id": "ports_open",  "run": "sys.procs" },
+    { "id": "gh_repos",    "run": "gh.repo.list" }
+  ]
+}

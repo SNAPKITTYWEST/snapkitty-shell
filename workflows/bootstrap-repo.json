@@ -1,0 +1,11 @@
+{
+  "name": "bootstrap-repo",
+  "description": "Scaffold and push a new sovereign repo to SNAPKITTYWEST",
+  "env": {},
+  "steps": [
+    { "id": "git_init",    "run": "git.init" },
+    { "id": "git_add",     "run": "git.add.all" },
+    { "id": "gh_create",   "run": "gh.repo.create",  "args": { "name": "SNAPKITTYWEST/{name}" } },
+    { "id": "git_push",    "run": "git.push",         "confirm": true }
+  ]
+}

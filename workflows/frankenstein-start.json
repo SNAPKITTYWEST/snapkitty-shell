@@ -1,0 +1,14 @@
+{
+  "name": "frankenstein-start",
+  "description": "Start the full Frankenstein stack — Rust server + Python HANDS sidecar",
+  "env": { "cwd": "C:/Users/jessi/Desktop/sovereign-35" },
+  "steps": [
+    { "id": "build",       "run": "cargo.build.rel" },
+    { "id": "hands_deps",  "run": "py.pip.req",    "args": { "cwd": "C:/Users/jessi/Desktop/sovereign-35/hands" } },
+    { "id": "spacy_model", "run": "py.spacy.dl" },
+    { "id": "gpu_check",   "run": "sys.gpu" },
+    { "id": "port_check",  "run": "sys.ports", "args": { "port": "4300" } },
+    { "id": "launch_note", "run": "raw", "cmd": "echo 'Start hands_server.py in a separate terminal: python hands/hands_server.py'" },
+    { "id": "run_frank",   "run": "cargo.run.bin", "args": { "bin": "frankenstein" } }
+  ]
+}

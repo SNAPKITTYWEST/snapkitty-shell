@@ -37,13 +37,17 @@ Backtick executor, command registry, workflow DSL, governance gate, WORM-sealed 
   ┌──────────────────────────────────────────────────────────────────┐
   │                GOVERNANCE GATE                                   │
   │                                                                  │
+  │  Every command passes through here.                             │
+  │  BLOCKED  → NACK TICK returned, WORM sealed, agent rejected    │
+  │  CONFIRM  → Agent must pass confirm:true to proceed             │
+  │  WARN     → Destructive command allowed with warning            │
+  │  PASS     → Command proceeds to execution                       │
+  │                                                                  │
   │  BLOCKED:  rm -rf /, format c:, drop database, fork bomb,      │
   │            truncate worm_chain, dd if=/dev/zero                 │
   │                                                                  │
   │  CONFIRM:  git.push, gh.repo.create, gh.release,               │
   │            sys.kill, docker.down, psql.cmd                      │
-  │                                                                  │
-  │  WARN:     Commands marked safe:false                            │
   └──────────────────────────────────────────────────────────────────┘
           │
           v
@@ -128,6 +132,88 @@ Fastify REST API — any agent can call in, shell executes, WORM seals.
   GET  /health        Status check
 ```
 
+## NACK Tick — The Governance Rejection Mechanism
+
+Every command that passes through the executor can be **NACK'd** — negative acknowledged. This is the core safety mechanism. The agent never executes destructive operations.
+
+```
+  Agent sends: `rm -rf /tmp/important`
+                        │
+                        v
+  ┌─────────────────────────────────────────────────────────┐
+  │              GOVERNANCE GATE EVALUATES                   │
+  │                                                         │
+  │  Pattern: /rm\s+-rf\s+\/(?!\w)/                         │
+  │  Match:   YES                                           │
+  │  Result:  BLOCKED                                       │
+  └─────────────────────────────────────────────────────────┘
+                        │
+                        v
+  ┌─────────────────────────────────────────────────────────┐
+  │              NACK TICK RETURNED                          │
+  │                                                         │
+  │  {                                                      │
+  │    output: "[TRUST DEED BLOCKED: BLOCKED_PATTERN:       │
+  │             matches /rm\\s+-rf\\s+\\/.../]",             │
+  │    cmd: "rm -rf /tmp/important",                        │
+  │    blocked: true           ◄── THE NACK                 │
+  │  }                                                      │
+  └─────────────────────────────────────────────────────────┘
+                        │
+                        v
+  ┌─────────────────────────────────────────────────────────┐
+  │              WORM SEALED ANYWAY                          │
+  │                                                         │
+  │  The NACK is recorded in the chain:                     │
+  │  {                                                      │
+  │    event: "SHELL_EXEC",                                 │
+  │    cmd: "rm -rf /tmp/important",                        │
+  │    key: "raw",                                          │
+  │    ok: true,           ◄── executed=false, but sealed   │
+  │    blocked: true,      ◄── audit trail preserved        │
+  │    preview: "[TRUST DEED BLOCKED: ...]"                 │
+  │  }                                                      │
+  │                                                         │
+  │  Tamper-proof receipt of the attempt.                   │
+  │  Even rejected commands leave a WORM record.            │
+  └─────────────────────────────────────────────────────────┘
+```
+
+### NACK Types
+
+| Type | Trigger | Response |
+|------|---------|----------|
+| `BLOCKED_PATTERN` | Command matches kill switch (rm -rf /, format c:, drop database, fork bomb) | `blocked: true` — command never runs |
+| `CONFIRM_REQUIRED` | Command needs explicit confirmation (git.push, sys.kill, docker.down) | `blocked: true` until `confirm: true` passed |
+| `DESTRUCTIVE_WARNING` | Command marked `safe: false` | `allowed: true` with warning — still sealed |
+| `RAW_DENIED` | Raw shell command matches blocked pattern | `blocked: true` — raw shell rejected |
+
+### Why NACK Ticks Matter
+
+```
+  ┌──────────────────────────────────────────────────────────────┐
+  │  WITHOUT NACK TICK                                           │
+  │                                                              │
+  │  Agent → rm -rf / → EXECUTED → DAMAGE                       │
+  │                                                              │
+  ├──────────────────────────────────────────────────────────────┤
+  │  WITH NACK TICK                                              │
+  │                                                              │
+  │  Agent → rm -rf / → NACK → WORM SEALED → Agent retries     │
+  │                                    │                         │
+  │                                    └─► Audit log proves      │
+  │                                        attempt was blocked   │
+  └──────────────────────────────────────────────────────────────┘
+```
+
+The NACK tick is not just a guard — it is an **immutable record** that the agent attempted something destructive. This means:
+
+1. **No silent failures** — every rejection is logged in the WORM chain
+2. **Agent accountability** — the chain proves which agent tried what
+3. **Post-quantum audit** — ML-DSA-65 signatures seal the rejection itself
+4. **No bypass** — the gate runs before subprocess spawn, not after
+5. **Chain continuity** — even NACK'd commands extend the SHA-256 chain
+
 ## CLI Usage
 
 ```bash
@@ -157,7 +243,7 @@ skrun workflows/audit-repo.json --cwd ./other-repo
 | `bin/skrun.mjs` | Workflow runner CLI |
 | `src/commands/registry.mjs` | 100+ commands across 14 tags |
 | `src/executor/backtick.mjs` | Parse backticks, execute, WORM-seal |
-| `src/governance/gate.mjs` | Trust Deed gate — blocks destructive ops |
+| `src/governance/gate.mjs` | Trust Deed gate — NACK tick on destructive ops |
 | `src/worm/chain.mjs` | Append-only SHA-256 chain + PQ signatures |
 | `src/crypto/cbom.mjs` | Cryptography Bill of Materials |
 | `src/crypto/pq.mjs` | ML-DSA-65 post-quantum signing |
